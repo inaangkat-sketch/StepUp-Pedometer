@@ -34,8 +34,8 @@ export const RewardBadge: React.FC<RewardBadgeProps> = ({ achievement }) => {
         <Icon className="w-6 h-6" />
       </div>
       <div className="space-y-1">
-        <h4 className="text-xs font-black uppercase tracking-tighter leading-none">{achievement.title}</h4>
-        <p className="text-[10px] text-zinc-400 font-medium leading-tight">{achievement.description}</p>
+        <h4 className="font-pixel text-[10px] uppercase tracking-tighter leading-none">{achievement.title}</h4>
+        <p className="text-[8px] text-zinc-400 font-medium leading-tight">{achievement.description}</p>
       </div>
       {achievement.unlocked && (
         <div className="absolute -top-1 -right-1 w-4 h-4 bg-brand-accent rounded-full border-2 border-white"></div>

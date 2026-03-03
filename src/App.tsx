@@ -27,6 +27,8 @@ import { StepData, Achievement, UserProfile } from './types';
 import confetti from 'canvas-confetti';
 
 import { StepUpLogo } from './components/StepUpLogo';
+import { ProfileModal } from './components/ProfileModal';
+import { stepSensor } from './services/StepSensor';
 
 const INITIAL_STEPS: StepData = {
   steps: 0,
@@ -37,53 +39,110 @@ const INITIAL_STEPS: StepData = {
 };
 
 const INITIAL_USER: UserProfile = {
-  name: "Alex Rivera",
-  streak: 12,
-  totalSteps: 142000,
-  level: 8
+  name: "Pengguna Baru",
+  streak: 0,
+  totalSteps: 0,
+  level: 1
 };
 
 const INITIAL_ACHIEVEMENTS: Achievement[] = [
-  { id: '1', title: 'Bangun Pagi', description: 'Jalan 1000 langkah sebelum jam 8 pagi', icon: 'zap', unlocked: true, date: '2024-03-01' },
-  { id: '2', title: 'Penghancur Target', description: 'Capai target harian 7 hari berturut-turut', icon: 'trophy', unlocked: true, date: '2024-02-28' },
-  { id: '3', title: 'Pelari Maraton', description: 'Jalan 42km dalam satu minggu', icon: 'target', unlocked: false },
+  { id: '1', title: 'Langkah Pertama', description: 'Jalan 100 langkah pertama Anda', icon: 'zap', unlocked: false },
+  { id: '2', title: 'Pejuang Pagi', description: 'Capai 1000 langkah dalam satu sesi', icon: 'trophy', unlocked: false },
+  { id: '3', title: 'Penjelajah Kota', description: 'Jalan total 5km', icon: 'target', unlocked: false },
   { id: '4', title: 'Bintang Sosial', description: 'Bagikan progresmu 5 kali', icon: 'star', unlocked: false },
-  { id: '5', title: 'Burung Hantu', description: 'Jalan 2000 langkah setelah jam 10 malam', icon: 'shield', unlocked: true, date: '2024-02-25' },
-  { id: '6', title: 'Ahli Runtun', description: 'Pertahankan rekor 30 hari', icon: 'flame', unlocked: false },
+  { id: '5', title: 'Penghancur Target', description: 'Capai target harian 10.000 langkah', icon: 'shield', unlocked: false },
+  { id: '6', title: 'Ahli Runtun', description: 'Pertahankan rekor 7 hari', icon: 'flame', unlocked: false },
 ];
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'social' | 'rewards'>('dashboard');
-  const [stepData, setStepData] = useState<StepData>(INITIAL_STEPS);
-  const [user, setUser] = useState<UserProfile>(INITIAL_USER);
-  const [achievements, setAchievements] = useState<Achievement[]>(INITIAL_ACHIEVEMENTS);
+  const [stepData, setStepData] = useState<StepData>(() => {
+    const saved = localStorage.getItem('stepData');
+    return saved ? JSON.parse(saved) : INITIAL_STEPS;
+  });
+  const [user, setUser] = useState<UserProfile>(() => {
+    const saved = localStorage.getItem('userProfile');
+    return saved ? JSON.parse(saved) : INITIAL_USER;
+  });
+  const [achievements, setAchievements] = useState<Achievement[]>(() => {
+    const saved = localStorage.getItem('achievements');
+    return saved ? JSON.parse(saved) : INITIAL_ACHIEVEMENTS;
+  });
   const [isGoalReached, setIsGoalReached] = useState(false);
   const [isWalking, setIsWalking] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [sensorError, setSensorError] = useState<string | null>(null);
 
   const progress = useMemo(() => Math.min(stepData.steps / stepData.goal, 1), [stepData.steps, stepData.goal]);
 
-  // Real-time tracking simulation
+  // Persist data
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    localStorage.setItem('stepData', JSON.stringify(stepData));
+    localStorage.setItem('userProfile', JSON.stringify(user));
+    localStorage.setItem('achievements', JSON.stringify(achievements));
+  }, [stepData, user, achievements]);
+
+  // Achievement Logic
+  useEffect(() => {
+    const checkAchievements = () => {
+      let updated = false;
+      const newAchievements = achievements.map(ach => {
+        if (ach.unlocked) return ach;
+
+        let shouldUnlock = false;
+        if (ach.id === '1' && stepData.steps >= 100) shouldUnlock = true;
+        if (ach.id === '2' && stepData.steps >= 1000) shouldUnlock = true;
+        if (ach.id === '3' && stepData.distance >= 5) shouldUnlock = true;
+        if (ach.id === '5' && stepData.steps >= 10000) shouldUnlock = true;
+
+        if (shouldUnlock) {
+          updated = true;
+          return { ...ach, unlocked: true, date: new Date().toISOString().split('T')[0] };
+        }
+        return ach;
+      });
+
+      if (updated) {
+        setAchievements(newAchievements);
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#00FF00', '#FFD700']
+        });
+      }
+    };
+
+    checkAchievements();
+  }, [stepData.steps, stepData.distance, achievements]);
+
+  // Real-time tracking with Sensor
+  useEffect(() => {
     if (isTracking) {
       setIsWalking(true);
-      interval = setInterval(() => {
-        // Simulate 1-3 steps every 800ms
-        const randomSteps = Math.floor(Math.random() * 3) + 1;
-        setStepData(prev => ({
+      stepSensor.start((newSteps) => {
+        setStepData(prev => {
+          const totalSteps = prev.steps + newSteps;
+          return {
+            ...prev,
+            steps: totalSteps,
+            calories: prev.calories + Number((newSteps * 0.04).toFixed(2)),
+            distance: Number((prev.distance + newSteps * 0.0007).toFixed(4)),
+            time: prev.time + (1/60)
+          };
+        });
+        setUser(prev => ({
           ...prev,
-          steps: prev.steps + randomSteps,
-          calories: prev.calories + Number((randomSteps * 0.04).toFixed(2)),
-          distance: Number((prev.distance + randomSteps * 0.0007).toFixed(4)),
-          time: prev.time + (1/60) // Add seconds
+          totalSteps: prev.totalSteps + newSteps
         }));
-      }, 800);
+      });
     } else {
       setIsWalking(false);
+      stepSensor.stop();
     }
-    return () => clearInterval(interval);
+    return () => stepSensor.stop();
   }, [isTracking]);
 
   useEffect(() => {
@@ -98,20 +157,30 @@ export default function App() {
     }
   }, [progress, isGoalReached]);
 
-  const addSteps = (amount: number) => {
-    setIsWalking(true);
-    setStepData(prev => ({
-      ...prev,
-      steps: prev.steps + amount,
-      calories: prev.calories + Math.floor(amount * 0.04),
-      distance: Number((prev.distance + amount * 0.0007).toFixed(1)),
-      time: prev.time + Math.floor(amount / 100)
-    }));
-    
-    // Stop walking animation after a short delay if not tracking
+  const toggleTracking = async () => {
     if (!isTracking) {
-      setTimeout(() => setIsWalking(false), 1000);
+      const hasPermission = await stepSensor.requestPermission();
+      if (!hasPermission) {
+        setSensorError('Izin sensor gerak ditolak atau tidak didukung oleh browser Anda.');
+        return;
+      }
+      setSensorError(null);
     }
+    setIsTracking(!isTracking);
+  };
+
+  const handleResetData = () => {
+    setStepData(INITIAL_STEPS);
+    setUser(INITIAL_USER);
+    setAchievements(INITIAL_ACHIEVEMENTS);
+    setIsTracking(false);
+    setIsGoalReached(false);
+    localStorage.clear();
+  };
+
+  const updateProfile = (name: string, goal: number) => {
+    setUser(prev => ({ ...prev, name }));
+    setStepData(prev => ({ ...prev, goal }));
   };
 
   if (showSplash) {
@@ -132,17 +201,16 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <button className="p-2 rounded-full hover:bg-white/10 transition-colors relative">
-            <Bell className="w-5 h-5 text-white/80" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-brand-accent rounded-full border-2 border-forest-deep"></span>
-          </button>
-          <div className="w-10 h-10 rounded-full bg-white/20 overflow-hidden border-2 border-white/40 shadow-sm">
+          <button 
+            onClick={() => setIsProfileOpen(true)}
+            className="w-10 h-10 rounded-full bg-white/20 overflow-hidden border-2 border-white/40 shadow-sm hover:scale-110 active:scale-95 transition-all"
+          >
             <img 
               src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.name}`} 
               alt="Avatar" 
               referrerPolicy="no-referrer"
             />
-          </div>
+          </button>
         </div>
       </header>
 
@@ -161,6 +229,17 @@ export default function App() {
                 <h2 className="font-pixel text-lg text-brand-primary tracking-tighter uppercase drop-shadow-[0_0_8px_rgba(0,255,0,0.3)]">Dasbor</h2>
                 <p className="text-white/70 font-medium text-sm italic">"setiap langkah hari ini adalah investasi buat badan yang lebih segar besok"</p>
               </div>
+
+              {/* Sensor Error Message */}
+              {sensorError && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-red-500/20 border border-red-500/30 p-4 rounded-2xl text-[10px] font-pixel text-red-400 text-center uppercase tracking-widest"
+                >
+                  {sensorError}
+                </motion.div>
+              )}
 
               {/* Pixel Character Section */}
               <div className="flex flex-col items-center justify-center py-6 space-y-6 bg-white/5 rounded-[40px] border border-white/10 backdrop-blur-sm relative overflow-hidden">
@@ -212,7 +291,7 @@ export default function App() {
               {/* Real-time Tracking Button */}
               <div className="px-2">
                 <button 
-                  onClick={() => setIsTracking(!isTracking)}
+                  onClick={toggleTracking}
                   className={`w-full neo-brutal py-6 rounded-3xl flex flex-col items-center justify-center gap-3 transition-all duration-500 ${
                     isTracking 
                       ? 'bg-brand-accent text-white shadow-[0_0_30px_rgba(255,78,0,0.4)]' 
@@ -226,7 +305,7 @@ export default function App() {
                     </span>
                   </div>
                   <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest">
-                    {isTracking ? 'Berjalan di dalam kabut' : 'Mulai perjalananmu'}
+                    {isTracking ? 'Berjalan di dunia nyata' : 'Mulai perjalananmu'}
                   </p>
                 </button>
               </div>
@@ -248,19 +327,6 @@ export default function App() {
                   </div>
                 </div>
               </div>
-
-              {/* Quick Actions */}
-              <div className="space-y-4">
-                <h3 className="font-pixel text-[10px] uppercase tracking-widest text-white/40 px-2">Tambahan Manual</h3>
-                <div className="flex gap-4">
-                  <button 
-                    onClick={() => addSteps(500)}
-                    className="flex-1 bg-white/10 hover:bg-white/20 p-4 rounded-2xl flex items-center justify-center gap-2 font-pixel text-[10px] uppercase tracking-tighter border border-white/10 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" /> +500 Langkah
-                  </button>
-                </div>
-              </div>
             </motion.div>
           )}
 
@@ -274,25 +340,8 @@ export default function App() {
               <SocialBoard steps={Math.floor(stepData.steps)} goal={stepData.goal} userName={user.name} />
               
               <div className="mt-12 space-y-6">
-                <h3 className="font-pixel text-[10px] uppercase tracking-widest text-white/40 px-2">Aktivitas Terbaru</h3>
-                <div className="space-y-3">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="bg-white/5 backdrop-blur-md p-4 rounded-3xl flex items-center justify-between border border-white/10">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-white/10 overflow-hidden">
-                          <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=Friend${i}`} alt="Friend" referrerPolicy="no-referrer" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold">Teman {i}</p>
-                          <p className="text-xs text-white/40">Baru saja mencapai target!</p>
-                        </div>
-                      </div>
-                      <button className="p-2 rounded-full bg-brand-primary/10 text-brand-primary">
-                        <Zap className="w-4 h-4 fill-current" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                <h3 className="font-pixel text-[10px] uppercase tracking-widest text-white/40 px-2 text-center">Ayo ajak temanmu bergabung!</h3>
+                <p className="text-white/30 text-[10px] text-center italic">"Berjalan lebih menyenangkan bersama."</p>
               </div>
             </motion.div>
           )}
@@ -327,11 +376,13 @@ export default function App() {
                 <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                   <motion.div 
                     initial={{ width: 0 }}
-                    animate={{ width: '94%' }}
+                    animate={{ width: `${Math.min((user.totalSteps / 150000) * 100, 100)}%` }}
                     className="h-full bg-brand-primary shadow-[0_0_10px_rgba(0,255,0,0.5)]"
                   />
                 </div>
-                <p className="text-[10px] text-white/40 font-medium">8.000 langkah lagi untuk mencapai Level 9</p>
+                <p className="text-[10px] text-white/40 font-medium">
+                  {Math.max(0, 150000 - user.totalSteps).toLocaleString()} langkah lagi untuk mencapai target besar berikutnya
+                </p>
               </div>
             </motion.div>
           )}
@@ -364,6 +415,17 @@ export default function App() {
           </button>
         </div>
       </nav>
+
+      {/* Profile Modal */}
+      <ProfileModal 
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        user={user}
+        goal={stepData.goal}
+        onUpdate={updateProfile}
+        onReset={handleResetData}
+      />
     </div>
   );
 }
+
