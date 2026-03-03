@@ -1,19 +1,54 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Press+Start+2P&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-pixel: "Press Start 2P", system-ui, sans-serif;
   
   --color-brand-primary: #00FF00; /* Neon Green */
   --color-brand-secondary: #000000;
   --color-brand-accent: #FF4E00; /* Vibrant Orange */
+  
+  --color-forest-deep: #00291F;
+  --color-forest-mid: #36503F;
+  --color-forest-light: #667A56;
 }
 
 @layer base {
   body {
-    @apply bg-zinc-50 text-zinc-900 antialiased font-sans;
+    @apply text-zinc-900 antialiased font-sans;
+    background: linear-gradient(135deg, var(--color-forest-deep) 0%, var(--color-forest-mid) 50%, var(--color-forest-light) 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
   }
+}
+
+.bg-forest-mist {
+  background: linear-gradient(180deg, #00291F 0%, #36503F 50%, #667A56 100%);
+}
+
+.font-pixel {
+  font-family: var(--font-pixel);
+  line-height: 1.5;
+}
+
+.pixel-bg {
+  background-image: 
+    linear-gradient(45deg, #87CEEB 25%, transparent 25%),
+    linear-gradient(-45deg, #87CEEB 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #87CEEB 75%),
+    linear-gradient(-45deg, transparent 75%, #87CEEB 75%);
+  background-size: 20px 20px;
+  background-color: #4a90e2;
+}
+
+.pixel-border {
+  box-shadow: 
+    0 -4px 0 0 #000,
+    0 4px 0 0 #000,
+    -4px 0 0 0 #000,
+    4px 0 0 0 #000;
 }
 
 .glass {
@@ -32,4 +67,29 @@
 
 .animate-float {
   animation: float 3s ease-in-out infinite;
+}
+
+@keyframes walk {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+  100% { transform: translateY(0); }
+}
+
+.animate-walk {
+  animation: walk 0.4s ease-in-out infinite;
+}
+
+@keyframes wave {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(20deg); }
+  75% { transform: rotate(-20deg); }
+}
+
+.animate-wave {
+  animation: wave 0.5s ease-in-out infinite;
+}
+
+.pixel-art {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
